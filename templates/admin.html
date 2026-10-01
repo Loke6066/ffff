@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deep-Live-Cam Cloud | Admin Control Center</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme">
+  <div class="layout">
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <h1>Deep-Live-Cam <span>Cloud GPU</span></h1>
+          <p class="subtitle">Cloud RTX 5070 Ti / 5060 Real-Time Face Swap Portal</p>
+        </div>
+      </div>
+      <div class="gpu-badge">
+        <span class="status-dot"></span>
+        <span>RTX 5070 Ti (16GB VRAM) • Online</span>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <!-- Session Generator Section -->
+      <section class="card generate-card">
+        <div class="card-header">
+          <h2>🔗 Generate Client Live Session Link</h2>
+          <p>Create a time-bounded, secure link for your client. The video stream will auto-terminate when time runs out.</p>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="clientName">Client Name / Label</label>
+            <input type="text" id="clientName" placeholder="e.g. VIP Client 1" value="Client-01">
+          </div>
+
+          <div class="form-group">
+            <label>Select Duration</label>
+            <div class="preset-buttons">
+              <button type="button" class="preset-btn active" data-mins="35">35 Minutes</button>
+              <button type="button" class="preset-btn" data-mins="65">65 Minutes</button>
+              <button type="button" class="preset-btn" data-mins="15">15 Mins</button>
+              <button type="button" class="preset-btn custom-toggle" id="customMinsBtn">Custom</button>
+            </div>
+            <input type="number" id="customMinsInput" placeholder="Minutes" class="custom-input hidden" min="1" max="600">
+          </div>
+        </div>
+
+        <button id="btnGenerate" class="btn btn-primary btn-large">
+          <span class="btn-icon">⚡</span> Generate Client Link
+        </button>
+
+        <!-- Generated Link Result Modal/Box -->
+        <div id="linkResultBox" class="result-box hidden">
+          <div class="result-header">
+            <span class="badge badge-success">Link Generated Successfully!</span>
+            <span id="resultDurationBadge" class="duration-badge">⏱️ 35 Min Session</span>
+          </div>
+          <div class="link-copy-row">
+            <input type="text" id="generatedLinkInput" readonly>
+            <button id="btnCopyLink" class="btn btn-copy">
+              <span>📋 Copy Link</span>
+            </button>
+            <a id="btnOpenLink" href="#" target="_blank" class="btn btn-secondary">
+              <span>🚀 Open Preview</span>
+            </a>
+          </div>
+          <p class="link-hint">💡 Share this link with your client. They can open it on any laptop browser, choose their desired face image, and start live swapping instantly with 0% lag!</p>
+        </div>
+      </section>
+
+      <!-- Active Sessions Section -->
+      <section class="card table-card">
+        <div class="card-header flex-between">
+          <div>
+            <h2>📊 Active Client Sessions</h2>
+            <p>Live monitoring of active connections, streaming FPS, and remaining time.</p>
+          </div>
+          <button id="btnRefresh" class="btn btn-sm btn-outline">🔄 Refresh</button>
+        </div>
+
+        <div class="table-container">
+          <table class="session-table">
+            <thead>
+              <tr>
+                <th>Client / Token</th>
+                <th>Status</th>
+                <th>Remaining Time</th>
+                <th>Face Loaded</th>
+                <th>Live FPS</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="sessionsTableBody">
+              <tr>
+                <td colspan="6" class="text-center py-4">No active sessions. Click "Generate Client Link" above to start.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>Powered by Deep-Live-Cam Engine • RTX Cloud Acceleration • Real-time WebRTC & WebSocket Stream</p>
+    </footer>
+  </div>
+
+  <script src="/static/admin.js"></script>
+</body>
+</html>

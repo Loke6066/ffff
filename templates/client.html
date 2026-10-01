@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deep-Live-Cam | Live Cloud Studio</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme client-mode">
+  <div class="client-container">
+    <!-- Top Bar with Countdown Timer -->
+    <header class="client-header">
+      <div class="client-brand">
+        <span class="live-dot"></span>
+        <span class="title">Deep-Live-Cam <span>Live Studio</span></span>
+      </div>
+
+      <div class="timer-container" id="timerBox">
+        <span class="timer-icon">⏱️ Session Time Left:</span>
+        <span class="timer-display" id="sessionTimerDisplay">--:--</span>
+        <div class="timer-bar"><div class="timer-bar-fill" id="timerBarFill"></div></div>
+      </div>
+
+      <div class="engine-badge">
+        <span>⚡ Cloud GPU: RTX 5070 Ti Active</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="studio-grid">
+      <!-- Left Column: Controls & Face Selector (Matches original Deep-Live-Cam layout) -->
+      <aside class="control-panel">
+        <div class="panel-section">
+          <h3>Source Face Image</h3>
+          <p class="section-desc">Select or upload the photo of the face you want to swap onto your live camera:</p>
+          
+          <div class="face-card" id="faceDropZone">
+            <div class="face-preview-area" id="facePreviewContainer">
+              <div class="placeholder-icon">👤</div>
+              <p>Drag & Drop or Click to Upload Face</p>
+            </div>
+            <input type="file" id="faceFileInput" accept="image/*" class="hidden">
+            <button id="btnSelectFace" class="btn btn-primary btn-block">
+              📁 Select a face
+            </button>
+            <div id="faceStatus" class="face-status-text">No face selected yet</div>
+          </div>
+        </div>
+
+        <!-- Camera Controls -->
+        <div class="panel-section">
+          <h3>Camera Configuration</h3>
+          <div class="form-group">
+            <label for="cameraSelect">Select Camera:</label>
+            <select id="cameraSelect" class="form-select">
+              <option value="">Detecting cameras...</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="resSelect">Resolution:</label>
+            <select id="resSelect" class="form-select">
+              <option value="640x480" selected>640 x 480 (Recommended - Lowest Latency)</option>
+              <option value="1280x720">1280 x 720 (HD)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Refinement Options (matches screenshot) -->
+        <div class="panel-section">
+          <h3>Refinement & Options</h3>
+          
+          <div class="form-group">
+            <label for="enhancerSelect">Face Enhancer:</label>
+            <select id="enhancerSelect" class="form-select">
+              <option value="none" selected>None (Fastest - 0% Lag)</option>
+              <option value="face_enhancer_gpen256">GPEN-256 (High Quality Face Detail)</option>
+              <option value="face_enhancer_gpen512">GPEN-512 (Ultra Quality)</option>
+            </select>
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <label for="opacitySlider">Opacity (Blend Factor):</label>
+              <span id="opacityVal">100%</span>
+            </div>
+            <input type="range" id="opacitySlider" min="0" max="100" value="100" class="form-range">
+          </div>
+
+          <div class="stream-protocol-group">
+            <label>Stream Engine:</label>
+            <div class="radio-pill-group">
+              <label class="radio-pill">
+                <input type="radio" name="protocol" value="ws" checked>
+                <span>Ultra-Fast WebSocket</span>
+              </label>
+              {% if webrtc_supported %}
+              <label class="radio-pill">
+                <input type="radio" name="protocol" value="webrtc">
+                <span>WebRTC P2P</span>
+              </label>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+          <button id="btnStart" class="btn btn-start btn-block">
+            ▶️ Start Live
+          </button>
+          <button id="btnStop" class="btn btn-destroy btn-block hidden">
+            ⏹️ Stop
+          </button>
+        </div>
+      </aside>
+
+      <!-- Right Column: Live Output Preview Window (Matches Screenshot 1 "Live Preview") -->
+      <main class="preview-area">
+        <div class="preview-window">
+          <div class="window-header">
+            <div class="window-title">
+              <span class="window-icon">🟩</span>
+              <span>Live Preview</span>
+            </div>
+            <div class="window-stats">
+              <span id="hudFps" class="stat-badge">FPS: 0.0</span>
+              <span id="hudLatency" class="stat-badge">Ping: 0ms</span>
+              <button id="btnPip" class="btn-icon-tiny" title="Picture in Picture / Popout">🪟</button>
+              <button id="btnFullscreen" class="btn-icon-tiny" title="Fullscreen">⛶</button>
+            </div>
+          </div>
+
+          <div class="window-content" id="previewContainer">
+            <!-- Swapped Face Realtime Canvas / Video -->
+            <canvas id="liveCanvas" width="640" height="480"></canvas>
+            <video id="remoteVideo" class="hidden" autoplay playsinline></video>
+            <video id="localVideo" class="hidden" autoplay playsinline muted></video>
+
+            <!-- Overlay when inactive -->
+            <div id="previewOverlay" class="preview-overlay">
+              <div class="overlay-card">
+                <div class="pulse-icon">⚡</div>
+                <h3>Ready to Start</h3>
+                <p>1. Upload or select your face photo on the left.<br>2. Click <strong>"Start Live"</strong> to begin zero-lag cloud face swap.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="window-footer">
+            <span id="connectionStatus">● Idle - Ready</span>
+            <span class="latency-guarantee">Cloud RTX Engine • Sub-50ms Processing Guarantee</span>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    window.SESSION_TOKEN = "{{ token }}";
+    window.SESSION_DURATION = {{ duration_minutes }};
+  </script>
+  <script src="/static/client.js"></script>
+</body>
+</html>
