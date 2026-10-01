@@ -161,9 +161,11 @@ _HAS_TORCH_CUDA = False
 try:
     import torch
     if torch.cuda.is_available():
+        _t = torch.zeros(1, device='cuda')
+        del _t
         _HAS_TORCH_CUDA = True
-except ImportError:
-    pass
+except Exception:
+    _HAS_TORCH_CUDA = False
 
 # Cache the feathered mask — it's the same for every call at a given size
 _enhancer_cache: dict = {'mask': None, 'mask_size': 0}
@@ -232,16 +234,19 @@ def _paste_back(
 
     target_crop = frame[y1p:y2p, x1p:x2p]
 
+    blended_success = False
     if _HAS_TORCH_CUDA:
-        # Upload uint8 alpha — smaller transfer, scale on device.
-        mask_t = torch.from_numpy(inv_mask_crop).cuda().float().mul_(1.0 / 255.0).unsqueeze(2)
-        enhanced_t = torch.from_numpy(inv_restored_crop).float().cuda()
-        target_t = torch.from_numpy(target_crop).float().cuda()
-        blended = (mask_t * enhanced_t + (1.0 - mask_t) * target_t
-                   ).to(torch.uint8).cpu().numpy()
-        frame[y1p:y2p, x1p:x2p] = blended
-    else:
-        # Fused uint8 blend via cv2 SIMD — ~7× faster than the float32 round-trip.
+        try:
+            mask_t = torch.from_numpy(inv_mask_crop).cuda().float().mul_(1.0 / 255.0).unsqueeze(2)
+            enhanced_t = torch.from_numpy(inv_restored_crop).float().cuda()
+            target_t = torch.from_numpy(target_crop).float().cuda()
+            blended = (mask_t * enhanced_t + (1.0 - mask_t) * target_t).to(torch.uint8).cpu().numpy()
+            frame[y1p:y2p, x1p:x2p] = blended
+            blended_success = True
+        except Exception:
+            blended_success = False
+
+    if not blended_success:
         alpha_3c = cv2.merge([inv_mask_crop, inv_mask_crop, inv_mask_crop])
         inv_alpha = 255 - alpha_3c
         a_enh = cv2.multiply(inv_restored_crop, alpha_3c, scale=1.0 / 255.0)

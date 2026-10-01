@@ -20,7 +20,7 @@ import onnxruntime
 try:
     import tensorflow
     HAS_TENSORFLOW = True
-except ImportError:
+except (ImportError, Exception):
     HAS_TENSORFLOW = False
 
 import modules.globals
@@ -35,6 +35,7 @@ if HAS_TORCH and 'ROCMExecutionProvider' in modules.globals.execution_providers:
 warnings.filterwarnings('ignore', category=FutureWarning, module='insightface')
 if HAS_TORCH:
     warnings.filterwarnings('ignore', category=UserWarning, module='torchvision')
+    warnings.filterwarnings('ignore', category=UserWarning, module='torch')
 
 
 def parse_args() -> None:
@@ -196,7 +197,10 @@ def limit_resources() -> None:
 
 def release_resources() -> None:
     if 'CUDAExecutionProvider' in modules.globals.execution_providers and HAS_TORCH:
-        torch.cuda.empty_cache()
+        try:
+            torch.cuda.empty_cache()
+        except Exception:
+            pass
 
 
 def pre_check() -> bool:

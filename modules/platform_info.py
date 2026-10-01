@@ -21,8 +21,12 @@ IS_APPLE_SILICON: bool = IS_MACOS and _platform.machine() == "arm64"
 
 def _detect_torch_cuda() -> bool:
     try:
-        import torch  # noqa: WPS433 — local import, avoid hard dep at module load
-        return bool(torch.cuda.is_available())
+        import torch
+        if not torch.cuda.is_available():
+            return False
+        _t = torch.zeros(1, device='cuda')
+        del _t
+        return True
     except Exception:
         return False
 
