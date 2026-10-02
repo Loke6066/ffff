@@ -4,7 +4,7 @@ import time
 import json
 import asyncio
 import traceback
-from typing import Optional, Set
+from typing import Optional, Set, Any
 import cv2
 import numpy as np
 
@@ -20,7 +20,7 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
     sys.path.insert(0, CURRENT_DIR)
 
-from session_manager import session_manager
+from session_manager import session_manager, Session
 from cloud_engine import cloud_engine
 
 # WebRTC aiortc import with safe fallback
@@ -54,6 +54,8 @@ os.makedirs(STATIC_DIR, exist_ok=True)
 os.makedirs(TEMPLATES_DIR, exist_ok=True)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+if os.path.exists(PRESETS_DIR):
+    app.mount("/media", StaticFiles(directory=PRESETS_DIR), name="media")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 # Track active WebRTC peer connections
@@ -71,6 +73,23 @@ async def on_shutdown():
         await asyncio.gather(*coros)
         pcs.clear()
 
+# ----------------- PRESETS & REFERENCE IMAGES -----------------
+
+@app.get("/api/presets")
+async def get_presets():
+    presets = []
+    preset_dir = os.path.join(CURRENT_DIR, "media", "presets")
+    if os.path.exists(preset_dir):
+        for f in sorted(os.listdir(preset_dir)):
+            if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+                name_clean = f.rsplit(".", 1)[0].replace("_", " ").title()
+                presets.append({
+                    "id": f,
+                    "name": name_clean,
+                    "url": f"/media/presets/{f}"
+                })
+    return {"presets": presets}
+
 # ----------------- ADMIN ROUTES -----------------
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -82,8 +101,23 @@ async def create_session(request: Request):
     data = await request.json()
     duration_minutes = int(data.get("duration_minutes", 35))
     client_name = data.get("client_name", "Client")
+    preset_id = data.get("preset_id")
     
     session = session_manager.create_session(duration_minutes=duration_minutes, client_name=client_name)
+    
+    if preset_id:
+        preset_path = os.path.join(CURRENT_DIR, "media", "presets", preset_id)
+        if os.path.exists(preset_path):
+            try:
+                with open(preset_path, "rb") as f:
+                    contents = f.read()
+                face, _, _ = cloud_engine.extract_face_from_bytes(contents)
+                if face is not None:
+                    session.source_face = face
+                    session.source_image_bytes = contents
+            except Exception as e:
+                print(f"[Admin] Error pre-loading preset {preset_id}: {e}")
+
     host = request.headers.get("host", "localhost:8000")
     protocol = "https" if request.headers.get("x-forwarded-proto") == "https" else request.url.scheme
     client_link = f"{protocol}://{host}/session/{session.token}"
@@ -153,6 +187,33 @@ async def upload_face(token: str, file: UploadFile = File(...)):
         "success": True,
         "preview_url": preview_url,
         "message": "Face locked successfully! Ready for live swapping."
+    }
+
+@app.post("/api/session/{token}/select-preset")
+async def select_preset(token: str, request: Request):
+    session = session_manager.get_session(token)
+    if not session or not session.is_active:
+        raise HTTPException(status_code=403, detail="Session expired or invalid")
+
+    data = await request.json()
+    preset_id = data.get("preset_id")
+    preset_path = os.path.join(CURRENT_DIR, "media", "presets", preset_id)
+    if not os.path.exists(preset_path):
+        raise HTTPException(status_code=404, detail="Preset image not found")
+
+    with open(preset_path, "rb") as f:
+        contents = f.read()
+
+    face, preview_url, err = cloud_engine.extract_face_from_bytes(contents)
+    if err:
+        return {"success": False, "error": err}
+
+    session.source_face = face
+    session.source_image_bytes = contents
+    return {
+        "success": True,
+        "preview_url": preview_url,
+        "message": f"Reference face '{preset_id}' locked successfully!"
     }
 
 @app.post("/api/session/{token}/settings")

@@ -12,8 +12,29 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnOpenLink = document.getElementById("btnOpenLink");
   const btnRefresh = document.getElementById("btnRefresh");
   const sessionsTableBody = document.getElementById("sessionsTableBody");
+  const adminPresetSelect = document.getElementById("adminPresetSelect");
 
   let selectedMins = 35;
+
+  // Load Presets into Admin Dropdown
+  async function loadAdminPresets() {
+    if (!adminPresetSelect) return;
+    try {
+      const res = await fetch("/api/presets");
+      const data = await res.json();
+      if (data.presets && data.presets.length > 0) {
+        data.presets.forEach(p => {
+          const opt = document.createElement("option");
+          opt.value = p.id;
+          opt.textContent = `Pre-load: ${p.name}`;
+          adminPresetSelect.appendChild(opt);
+        });
+      }
+    } catch (e) {
+      console.warn("Could not load presets in admin:", e);
+    }
+  }
+  loadAdminPresets();
 
   // Preset button selection
   presetBtns.forEach(btn => {
@@ -45,12 +66,14 @@ document.addEventListener("DOMContentLoaded", () => {
     btnGenerate.innerHTML = "⏳ Generating...";
 
     try {
+      const presetId = adminPresetSelect ? adminPresetSelect.value : "";
       const res = await fetch("/api/admin/create-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           client_name: clientNameInput.value.trim() || "Client",
-          duration_minutes: selectedMins
+          duration_minutes: selectedMins,
+          preset_id: presetId || null
         })
       });
 

@@ -126,12 +126,69 @@ document.addEventListener("DOMContentLoaded", () => {
         faceStatus.textContent = "✅ Face Locked! Ready to Stream.";
         faceStatus.style.color = "#34d399";
         faceLocked = true;
+        document.querySelectorAll(".preset-item").forEach(i => i.classList.remove("active"));
       } else {
         faceStatus.textContent = "❌ " + data.error;
         faceStatus.style.color = "#f87171";
       }
     } catch (err) {
       faceStatus.textContent = "❌ Upload failed: " + err.message;
+      faceStatus.style.color = "#f87171";
+    }
+  }
+
+  // 2.1 Preset & Reference Faces
+  const presetGallery = document.getElementById("presetGallery");
+  async function loadPresets() {
+    try {
+      const res = await fetch("/api/presets");
+      const data = await res.json();
+      if (!data.presets || data.presets.length === 0) {
+        if (presetGallery && presetGallery.parentElement) {
+          presetGallery.parentElement.style.display = "none";
+        }
+        return;
+      }
+      presetGallery.innerHTML = data.presets.map(p => `
+        <div class="preset-item" data-id="${p.id}" title="${p.name}">
+          <img src="${p.url}" alt="${p.name}">
+        </div>
+      `).join("");
+
+      document.querySelectorAll(".preset-item").forEach(item => {
+        item.addEventListener("click", () => selectPreset(item.dataset.id, item));
+      });
+    } catch (e) {
+      console.warn("Presets could not be loaded:", e);
+    }
+  }
+  loadPresets();
+
+  async function selectPreset(presetId, el) {
+    document.querySelectorAll(".preset-item").forEach(i => i.classList.remove("active"));
+    if (el) el.classList.add("active");
+
+    faceStatus.textContent = "⏳ Locking reference face in cloud GPU...";
+    faceStatus.style.color = "#60a5fa";
+
+    try {
+      const res = await fetch(`/api/session/${token}/select-preset`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preset_id: presetId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        facePreviewContainer.innerHTML = `<img src="${data.preview_url}" alt="Target Face" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">`;
+        faceStatus.textContent = "✅ Face Locked! Ready to Stream.";
+        faceStatus.style.color = "#34d399";
+        faceLocked = true;
+      } else {
+        faceStatus.textContent = "❌ " + (data.error || "Failed to lock face");
+        faceStatus.style.color = "#f87171";
+      }
+    } catch (err) {
+      faceStatus.textContent = "❌ Error: " + err.message;
       faceStatus.style.color = "#f87171";
     }
   }
