@@ -279,19 +279,21 @@ async def websocket_live_stream(websocket: WebSocket, token: str):
                 img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
                 if img is not None:
-                    # Run face swap on Cloud GPU if source face loaded
+                    # Run face swap asynchronously on Cloud GPU without blocking event loop
                     if session.source_face is not None:
-                        swapped = cloud_engine.process_frame(
-                            frame=img,
-                            source_face=session.source_face,
-                            opacity=session.opacity,
-                            enhancer_type=session.enhancer
+                        swapped = await asyncio.to_thread(
+                            cloud_engine.process_frame,
+                            img,
+                            session.source_face,
+                            session.opacity,
+                            session.enhancer,
+                            token
                         )
                     else:
                         swapped = img
 
-                    # Encode back to high-speed JPEG (Turbo-JPEG quality 80 for minimal latency & bandwidth)
-                    _, encoded = cv2.imencode('.jpg', swapped, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
+                    # Turbo-JPEG encode (quality 76 for instant network transport across internet)
+                    _, encoded = cv2.imencode('.jpg', swapped, [int(cv2.IMWRITE_JPEG_QUALITY), 76])
                     
                     # Send swapped frame back to client browser instantly
                     await websocket.send_bytes(encoded.tobytes())

@@ -345,7 +345,11 @@ document.addEventListener("DOMContentLoaded", () => {
     pingBadge.textContent = "0ms latency";
   }
 
-  // 6. Ultra-Fast Zero-Lag Pipeline (<30ms roundtrip)
+  // 6. Continuous Pipelined Stream (Up to 2 frames in-flight for smooth 30 FPS)
+  let inFlight = 0;
+  const MAX_IN_FLIGHT = 2;
+  let streamTimer = null;
+
   function startWebSocketStream() {
     const loc = window.location;
     const wsProto = loc.protocol === "https:" ? "wss:" : "ws:";
@@ -356,10 +360,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ws.onopen = () => {
       previewLoader.classList.add("hidden");
-      scheduleNextFrame();
+      inFlight = 0;
+      // High-speed 30 FPS frame ticker
+      if (streamTimer) clearInterval(streamTimer);
+      streamTimer = setInterval(() => {
+        if (isStreaming && ws && ws.readyState === WebSocket.OPEN && inFlight < MAX_IN_FLIGHT) {
+          sendCameraFrame();
+        }
+      }, 33);
     };
 
     ws.onmessage = (event) => {
+      inFlight = Math.max(0, inFlight - 1);
+
       if (typeof event.data === "string") {
         try {
           const msg = JSON.parse(event.data);
@@ -385,43 +398,30 @@ document.addEventListener("DOMContentLoaded", () => {
           frameCounter = 0;
           fpsTimer = now;
         }
-
-        pendingFrame = false;
-        if (isStreaming) {
-          scheduleNextFrame();
-        }
-      }).catch(err => {
-        pendingFrame = false;
-      });
+      }).catch(err => {});
     };
 
     ws.onclose = () => {
+      if (streamTimer) clearInterval(streamTimer);
       if (isStreaming) {
         stopLive();
       }
     };
   }
 
-  function scheduleNextFrame() {
-    if (!isStreaming || !ws || ws.readyState !== WebSocket.OPEN) return;
-    if (pendingFrame) return; // Drop frame to prevent buffer lag
-
-    requestAnimationFrame(sendCameraFrame);
-  }
-
   function sendCameraFrame() {
-    if (!isStreaming || !ws || ws.readyState !== WebSocket.OPEN || pendingFrame) return;
+    if (!isStreaming || !ws || ws.readyState !== WebSocket.OPEN || inFlight >= MAX_IN_FLIGHT) return;
 
     captureCtx.drawImage(localVideo, 0, 0, captureCanvas.width, captureCanvas.height);
 
     captureCanvas.toBlob((blob) => {
-      if (blob && ws && ws.readyState === WebSocket.OPEN && !pendingFrame) {
-        pendingFrame = true;
+      if (blob && ws && ws.readyState === WebSocket.OPEN && inFlight < MAX_IN_FLIGHT) {
+        inFlight++;
         const sendTime = performance.now();
         ws.send(blob);
         pingBadge.textContent = `${(performance.now() - sendTime).toFixed(0)}ms latency`;
       }
-    }, "image/jpeg", 0.82);
+    }, "image/jpeg", 0.74);
   }
 
   // 7. Popout & Window Control
