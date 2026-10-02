@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Deep-Live-Cam Cloud Deployment Script for Vast.ai (RTX 5070 Ti / 5060)
+# Deep-Live-Cam Cloud Deployment Script for Vast.ai (2x RTX 5060 Ti / CUDA 12.8)
 # ==============================================================================
 set -e
 
 echo "================================================================="
-echo "🚀 Initializing Deep-Live-Cam Cloud Service on RTX 5070 Ti / 5060"
+echo "🚀 Initializing Deep-Live-Cam Cloud Service on 2x RTX 5060 Ti"
 echo "================================================================="
 
 # 1. Update OS and install essential Linux dependencies

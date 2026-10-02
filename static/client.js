@@ -275,7 +275,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     try {
-      connectionStatus.textContent = "● Connecting to Cloud RTX 5070 Ti...";
+      connectionStatus.textContent = "● Connecting to Cloud 2x RTX 5060 Ti...";
       localStream = await navigator.mediaDevices.getUserMedia(constraints);
       localVideo.srcObject = localStream;
       await localVideo.play();

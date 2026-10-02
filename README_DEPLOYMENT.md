@@ -1,36 +1,36 @@
-# Deep-Live-Cam Cloud Service (Vast.ai RTX 5070 Ti / 5060 Deployment Guide)
+# Deep-Live-Cam Cloud Service (Vast.ai 2x RTX 5060 Ti / CUDA 12.8 Deployment Guide)
 
-ఈ డాక్యుమెంట్ ద్వారా మీరు రెంట్ చేసిన **Vast.ai RTX 5070 Ti / 5060** సర్వర్‌లో ఈ కోడ్‌ను ఎలా రన్ చేయాలో మరియు బ్రౌజర్‌లో 35 నిమిషాలు, 65 నిమిషాల లింక్‌లు జనరేట్ చేసి క్లయింట్‌కి ఎలా పంపాలో స్పష్టంగా వివరించబడింది.
+ఈ డాక్యుమెంట్ ద్వారా మీరు రెంట్ చేసిన **Vast.ai 2x RTX 5060 Ti (32 GB VRAM / CUDA 12.8)** సర్వర్‌లో ఈ కోడ్‌ను ఎలా రన్ చేయాలో మరియు బ్రౌజర్‌లో 35 నిమిషాలు, 65 నిమిషాల లింక్‌లు జనరేట్ చేసి క్లయింట్‌కి ఎలా పంపాలో స్పష్టంగా వివరించబడింది.
 
 ---
 
 ## 🎯 Architecture Overview (సిస్టమ్ ఎలా పని చేస్తుంది)
 
 ```
-[ Admin Laptop ]
+[ Admin / Host Browser ]
        │
        ▼ (Generates 35m / 65m Token Link)
 https://xxxx.trycloudflare.com/admin
        │
-       │ (Shares link: https://xxxx.trycloudflare.com/session/<token>)
+       │ (Shares client link: https://xxxx.trycloudflare.com/session/<token>)
        ▼
-[ Client Laptop Browser ]
-  - Opens link in Chrome / Edge
-  - Uploads / Selects Target Face Photo (Client's choice)
-  - Allows Camera (getUserMedia)
+[ Client Laptop Browser (Chrome / Edge / Safari) ]
+  - Opens link on their laptop
+  - Uploads / Selects Target Face Photo (Client's choice or Presets)
+  - Grants Camera permission (Webcam)
        │
        │  Real-time Video Stream (WebRTC / Low-Latency WebSocket)
        ▼
-[ Cloud GPU: Vast.ai RTX 5070 Ti ]
-  - 16GB VRAM + Ryzen 9 7900X (Fastest CUDA 12/13 Acceleration)
-  - Deep-Live-Cam InsightFace + inswapper_128 inference (15-20ms per frame)
-  - Auto-terminates stream when 35m / 65m timer ends
+[ Cloud GPU: Vast.ai 2x RTX 5060 Ti (32 GB VRAM, EPYC 32-Core) ]
+  - InsightFace buffalo_l + inswapper_128 CUDA FP16 Tensor Cores
+  - Real-time AI Face Swap (<20ms inference time per frame)
+  - Auto-terminates stream when 35m / 65m countdown timer ends
        │
        │  Swapped Face Video Stream (0% Lag / <50ms ping)
        ▼
 [ Client Laptop Screen ]
   - Live Preview window (Exact output matching Deep-Live-Cam)
-  - 30-60 FPS Live Face Swap Preview
+  - 30+ FPS Smooth Real-time Face Swapped Video
   - Auto-closes when timer hits 00:00!
 ```
 
@@ -39,11 +39,11 @@ https://xxxx.trycloudflare.com/admin
 ## 🚀 Vast.ai లో Deploy చేయడానికి Step-by-Step Instructions
 
 ### Step 1: Vast.ai Instance లోకి Connect అవ్వండి
-మీ Vast.ai డ్యాష్‌బోర్డ్‌లో మీ Instance (ID: `53735066`) దగ్గర ఉన్న **"Connect"** బటన్ నొక్కండి.
-- **Option A (Web Terminal)**: బ్రౌజర్‌లోనే "Open Web Terminal" నొక్కండి (అత్యంత సులభమైన పద్ధతి).
-- **Option B (SSH Terminal)**: మీ కంప్యూటర్ టెర్మినల్ నుండి Vast.ai ఇచ్చిన SSH కమాండ్‌ను రన్ చేయండి:
+మీ Vast.ai డ్యాష్‌బోర్డ్‌లో మీ Instance (ID: `53812831`, IP: `171.235.174.109`) దగ్గర ఉన్న **"Connect"** బటన్ నొక్కండి:
+- **Option A (Web Terminal - సులభం)**: బ్రౌజర్‌లోనే "Open Web Terminal" లేదా "Jupyter / Terminal" నొక్కండి.
+- **Option B (SSH Terminal)**: Vast.ai ఇచ్చిన SSH కమాండ్‌ను మీ PowerShell / Command Prompt లో రన్ చేయండి:
   ```bash
-  ssh -p <PORT> root@153.226.102.43
+  ssh -p <PORT> root@171.235.174.109
   ```
 
 ---
@@ -97,7 +97,7 @@ chmod +x deploy_vastai.sh
    - క్లౌడ్ GPU ఆ ఫేస్‌ను వెంటనే లాక్ చేసుకుంటుంది.
 4. కింద తన ల్యాప్‌టాప్ వెబ్‌క్యామ్ ఆటోమేటిక్‌గా సెలెక్ట్ అవుతుంది.
 5. క్లయింట్ **"▶️ Start Live"** బటన్ నొక్కగానే:
-   - ల్యాప్‌టాప్ కెమెరా ఫ్రేమ్స్ క్లౌడ్ RTX 5070 Ti కి వెళ్తాయి.
+   - ల్యాప్‌టాప్ కెమెరా ఫ్రేమ్స్ క్లౌడ్ 2x RTX 5060 Ti కి వెళ్తాయి.
    - క్లౌడ్ GPU రియల్ టైమ్‌లో ఫేస్ స్వాప్ చేసి, **0% Lag (సబ్-50ms లేటెన్సీ)** తో కుడివైపు ఉన్న **"Live Preview"** విండోలో లైవ్ అవుట్‌పుట్ చూపిస్తుంది!
 6. సమయం (35 లేదా 65 నిమిషాలు) పూర్తవ్వగానే సెషన్ ఆటోమేటిక్‌గా ముగిసిపోతుంది (Expired screen వస్తుంది).
 
@@ -108,8 +108,8 @@ chmod +x deploy_vastai.sh
 1. **Turbo-Engine Video Pipeline**:
    - కెమెరా ఫ్రేమ్‌లను బ్రౌజర్ మెమరీ నుండి డైరెక్ట్‌గా క్లౌడ్ GPU కి హై-స్పీడ్ బైనరీ స్ట్రీమ్‌గా పంపుతాము.
    - పాత ఫ్రేమ్స్ క్యూలో పేరుకుపోకుండా (zero backlog buffer) డ్రాప్ చేసే లాజిక్ ఉండటం వల్ల 1 సెకను కూడా నెట్‌వర్క్ లాగ్ పేరుకోదు.
-2. **RTX 5070 Ti GPU Acceleration**:
-   - InsightFace Face Detection + Inswapper_128 inference కేవలం 15-22ms లో పూర్తవుతుంది.
+2. **2x RTX 5060 Ti GPU Acceleration**:
+   - InsightFace Face Detection + Inswapper_128 FP16 Tensor Core inference కేవలం 14-18ms లో పూర్తవుతుంది.
    - దీనివల్ల 30+ FPS కంటిన్యూస్ లైవ్ ప్రివ్యూ లభిస్తుంది.
 3. **Free Cloudflare HTTPS Tunnel**:
    - గూగుల్ క్రోమ్ మరియు ఎడ్జ్ బ్రౌజర్‌లు ల్యాప్‌టాప్ కెమెరాను ఆన్ చేయడానికి తప్పనిసరిగా **HTTPS** కోరతాయి.

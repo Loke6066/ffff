@@ -1,4 +1,4 @@
-# Deep-Live-Cam Cloud Service Requirements (Vast.ai / RTX 5070 Ti / 5060)
+# Deep-Live-Cam Cloud Service Requirements (Vast.ai / 2x RTX 5060 Ti / CUDA 12.8)
 numpy>=1.26.0,<2.2
 typing-extensions>=4.12.0
 opencv-python-headless>=4.9.0
