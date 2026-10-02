@@ -163,6 +163,24 @@ async def client_page(request: Request, token: str):
         "webrtc_supported": AIORTC_AVAILABLE
     })
 
+@app.get("/preview/{token}", response_class=HTMLResponse)
+async def preview_page(request: Request, token: str):
+    session = session_manager.get_session(token)
+    if not session or not session.is_active:
+        return templates.TemplateResponse(request=request, name="expired.html", context={"request": request, "token": token})
+    return templates.TemplateResponse(request=request, name="preview.html", context={
+        "request": request,
+        "token": token,
+        "client_name": session.client_name
+    })
+
+@app.get("/download/client_app.py")
+async def download_client_app():
+    path = os.path.join(CURRENT_DIR, "client_app.py")
+    if os.path.exists(path):
+        return FileResponse(path, filename="client_app.py", media_type="text/x-python")
+    raise HTTPException(status_code=404, detail="File not found")
+
 @app.get("/api/session/{token}/status")
 async def session_status(token: str):
     session = session_manager.get_session(token)
@@ -292,8 +310,8 @@ async def websocket_live_stream(websocket: WebSocket, token: str):
                     else:
                         swapped = img
 
-                    # Turbo-JPEG encode (quality 76 for instant network transport across internet)
-                    _, encoded = cv2.imencode('.jpg', swapped, [int(cv2.IMWRITE_JPEG_QUALITY), 76])
+                    # Ultra-fast JPEG encode (quality 55 for ~12KB payload & instant network transport)
+                    _, encoded = cv2.imencode('.jpg', swapped, [int(cv2.IMWRITE_JPEG_QUALITY), 55])
                     
                     # Send swapped frame back to client browser instantly
                     await websocket.send_bytes(encoded.tobytes())

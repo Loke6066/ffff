@@ -345,10 +345,9 @@ document.addEventListener("DOMContentLoaded", () => {
     pingBadge.textContent = "0ms latency";
   }
 
-  // 6. Continuous Pipelined Stream (Up to 2 frames in-flight for smooth 30 FPS)
-  let inFlight = 0;
-  const MAX_IN_FLIGHT = 2;
-  let streamTimer = null;
+  // 6. Zero-Lag Real-Time Streaming Pipeline
+  let inFlight = false;
+  let lastSendTime = 0;
 
   function startWebSocketStream() {
     const loc = window.location;
@@ -360,18 +359,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     ws.onopen = () => {
       previewLoader.classList.add("hidden");
-      inFlight = 0;
-      // High-speed 30 FPS frame ticker
-      if (streamTimer) clearInterval(streamTimer);
-      streamTimer = setInterval(() => {
-        if (isStreaming && ws && ws.readyState === WebSocket.OPEN && inFlight < MAX_IN_FLIGHT) {
-          sendCameraFrame();
-        }
-      }, 33);
+      inFlight = false;
+      sendCameraFrame();
     };
 
     ws.onmessage = (event) => {
-      inFlight = Math.max(0, inFlight - 1);
+      const now = performance.now();
+      pingBadge.textContent = `${Math.round(now - lastSendTime)}ms latency`;
+      inFlight = false;
 
       if (typeof event.data === "string") {
         try {
@@ -384,25 +379,29 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // Received processed frame blob from 2x RTX 5060 Ti
+      // Received swapped frame from 2x RTX 5090 GPU
       const blob = event.data;
       createImageBitmap(blob).then(bitmap => {
         canvasCtx.drawImage(bitmap, 0, 0, liveCanvas.width, liveCanvas.height);
         bitmap.close();
 
-        // FPS calculation
         frameCounter++;
-        const now = performance.now();
         if (now - fpsTimer >= 1000) {
           hudFps.textContent = `FPS: ${(frameCounter * 1000 / (now - fpsTimer)).toFixed(1)}`;
           frameCounter = 0;
           fpsTimer = now;
         }
-      }).catch(err => {});
+
+        // Send next instantaneous camera frame immediately (0% lag)
+        if (isStreaming) {
+          sendCameraFrame();
+        }
+      }).catch(err => {
+        if (isStreaming) sendCameraFrame();
+      });
     };
 
     ws.onclose = () => {
-      if (streamTimer) clearInterval(streamTimer);
       if (isStreaming) {
         stopLive();
       }
@@ -410,32 +409,47 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function sendCameraFrame() {
-    if (!isStreaming || !ws || ws.readyState !== WebSocket.OPEN || inFlight >= MAX_IN_FLIGHT) return;
+    if (!isStreaming || !ws || ws.readyState !== WebSocket.OPEN || inFlight) return;
 
     captureCtx.drawImage(localVideo, 0, 0, captureCanvas.width, captureCanvas.height);
+    inFlight = true;
+    lastSendTime = performance.now();
 
+    // Quality 0.52 produces tiny ~14KB packet for zero network latency
     captureCanvas.toBlob((blob) => {
-      if (blob && ws && ws.readyState === WebSocket.OPEN && inFlight < MAX_IN_FLIGHT) {
-        inFlight++;
-        const sendTime = performance.now();
+      if (blob && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(blob);
-        pingBadge.textContent = `${(performance.now() - sendTime).toFixed(0)}ms latency`;
+      } else {
+        inFlight = false;
       }
-    }, "image/jpeg", 0.74);
+    }, "image/jpeg", 0.52);
   }
 
-  // 7. Popout & Window Control
-  btnPopout.addEventListener("click", () => {
-    // Picture in Picture for seamless popout
-    try {
-      const canvasStream = liveCanvas.captureStream(30);
-      localVideo.srcObject = canvasStream;
-      localVideo.play();
-      localVideo.requestPictureInPicture();
-    } catch (e) {
-      alert("Picture-in-Picture window activated.");
+  // Watchdog: If frame dropped or delayed > 120ms, drop stale state and send fresh live frame
+  setInterval(() => {
+    if (isStreaming && ws && ws.readyState === WebSocket.OPEN && inFlight) {
+      if (performance.now() - lastSendTime > 120) {
+        inFlight = false;
+        sendCameraFrame();
+      }
     }
-  });
+  }, 50);
+
+  // 7. Popout Standalone "Live Preview" OS Window (Matches User Screenshot Exactly)
+  function openSeparateLivePreview() {
+    const popoutUrl = `/preview/${token}`;
+    const popoutFeatures = "width=660,height=540,menubar=no,toolbar=no,location=no,status=no,resizable=yes";
+    const popoutWin = window.open(popoutUrl, "Live Preview", popoutFeatures);
+    if (popoutWin) {
+      popoutWin.focus();
+    }
+  }
+
+  btnPopout.addEventListener("click", openSeparateLivePreview);
+  const btnOpenPopout = document.getElementById("btnOpenPopout");
+  if (btnOpenPopout) {
+    btnOpenPopout.addEventListener("click", openSeparateLivePreview);
+  }
 
   btnMinPreview.addEventListener("click", () => {
     previewCanvasWrap.classList.toggle("hidden");

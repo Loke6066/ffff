@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Preview</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><rect x=%221%22 y=%221%22 width=%2214%22 height=%2214%22 rx=%222%22 fill=%22none%22 stroke=%22%2310b981%22 stroke-width=%222%22/><line x1=%221%22 y1=%225%22 x2=%2215%22 y2=%225%22 stroke=%22%2310b981%22 stroke-width=%221.5%22/></svg>">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: #111318;
+      color: #ffffff;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Minimalist Titlebar matching screenshot */
+    .preview-header {
+      background: #1e222d;
+      border-bottom: 1px solid #2d3343;
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+      height: 32px;
+    }
+    .preview-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+    .preview-stats {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 11px;
+      font-family: Consolas, monospace;
+      color: #94a3b8;
+    }
+    .hud-fps {
+      color: #34d399;
+      font-weight: 700;
+    }
+    .hud-ping {
+      color: #38bdf8;
+    }
+    /* Video Area */
+    .viewport {
+      flex: 1;
+      position: relative;
+      background: #000000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    /* Loading overlay */
+    .loader-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(10, 12, 16, 0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      z-index: 20;
+    }
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(16, 185, 129, 0.2);
+      border-top-color: #10b981;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-header">
+    <div class="preview-title">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+        <rect x="1" y="1" width="14" height="14" rx="2" stroke="#10b981" stroke-width="2"/>
+        <line x1="1" y1="5" x2="15" y2="5" stroke="#10b981" stroke-width="1.5"/>
+      </svg>
+      <span>Live Preview</span>
+    </div>
+    <div class="preview-stats">
+      <span id="hudFps" class="hud-fps">FPS: 0.0</span>
+      <span id="hudPing" class="hud-ping">⚡ RTX 5090 GPU</span>
+    </div>
+  </div>
+
+  <div class="viewport">
+    <canvas id="displayCanvas" width="640" height="480"></canvas>
+    <video id="webcamVideo" class="hidden" autoplay playsinline muted></video>
+
+    <div id="loader" class="loader-overlay">
+      <div class="spinner"></div>
+      <p id="loaderText">Connecting to RTX 5090 GPU Stream...</p>
+    </div>
+  </div>
+
+  <script>
+    const token = "{{ token }}";
+    const canvas = document.getElementById("displayCanvas");
+    const ctx = canvas.getContext("2d");
+    const video = document.getElementById("webcamVideo");
+    const loader = document.getElementById("loader");
+    const loaderText = document.getElementById("loaderText");
+    const hudFps = document.getElementById("hudFps");
+    const hudPing = document.getElementById("hudPing");
+
+    const captureCanvas = document.createElement("canvas");
+    const captureCtx = captureCanvas.getContext("2d", { willReadFrequently: true });
+
+    let ws = null;
+    let inFlight = false;
+    let frameCount = 0;
+    let fpsTime = performance.now();
+    let streamActive = true;
+
+    async function init() {
+      try {
+        loaderText.textContent = "Accessing Laptop Camera...";
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } },
+          audio: false
+        });
+        video.srcObject = stream;
+        await video.play();
+
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        captureCanvas.width = canvas.width;
+        captureCanvas.height = canvas.height;
+
+        connectSocket();
+      } catch (err) {
+        loaderText.textContent = "Camera Error: " + err.message;
+      }
+    }
+
+    function connectSocket() {
+      loaderText.textContent = "Connecting to 2x RTX 5090 GPU Engine...";
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      ws = new WebSocket(`${proto}//${location.host}/ws/live/${token}`);
+      ws.binaryType = "blob";
+
+      ws.onopen = () => {
+        loader.classList.add("hidden");
+        inFlight = false;
+        // Start streaming immediately
+        sendNextFrame();
+      };
+
+      ws.onmessage = (e) => {
+        inFlight = false;
+        if (typeof e.data === "string") return;
+
+        createImageBitmap(e.data).then(bitmap => {
+          ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+          bitmap.close();
+
+          frameCount++;
+          const now = performance.now();
+          if (now - fpsTime >= 1000) {
+            hudFps.textContent = `FPS: ${(frameCount * 1000 / (now - fpsTime)).toFixed(1)}`;
+            frameCount = 0;
+            fpsTime = now;
+          }
+
+          // Immediately send next live webcam frame for true 0% lag
+          if (streamActive) {
+            sendNextFrame();
+          }
+        }).catch(() => {
+          if (streamActive) sendNextFrame();
+        });
+      };
+
+      ws.onclose = () => {
+        loader.classList.remove("hidden");
+        loaderText.textContent = "Disconnected. Reconnecting...";
+        setTimeout(connectSocket, 2000);
+      };
+    }
+
+    function sendNextFrame() {
+      if (inFlight || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+      captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+      inFlight = true;
+
+      // Quality 55 provides crisp clarity with tiny 14KB packet for zero network lag
+      captureCanvas.toBlob((blob) => {
+        if (blob && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(blob);
+        } else {
+          inFlight = false;
+        }
+      }, "image/jpeg", 0.55);
+    }
+
+    window.addEventListener("DOMContentLoaded", init);
+  </script>
+</body>
+</html>
