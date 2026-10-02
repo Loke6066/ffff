@@ -94,7 +94,7 @@ async def get_presets():
 
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_page(request: Request):
-    return templates.TemplateResponse("admin.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="admin.html", context={"request": request})
 
 @app.post("/api/admin/create-session")
 async def create_session(request: Request):
@@ -149,13 +149,13 @@ async def terminate_session(request: Request):
 async def client_page(request: Request, token: str):
     session = session_manager.get_session(token)
     if not session or not session.is_active:
-        return templates.TemplateResponse("expired.html", {"request": request, "token": token})
+        return templates.TemplateResponse(request=request, name="expired.html", context={"request": request, "token": token})
     
     # Start timer countdown when client loads link
     session.start_session_timer()
     session.client_ip = request.client.host if request.client else "Unknown"
 
-    return templates.TemplateResponse("client.html", {
+    return templates.TemplateResponse(request=request, name="client.html", context={
         "request": request,
         "token": token,
         "duration_minutes": session.duration_seconds // 60,
