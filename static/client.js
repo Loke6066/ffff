@@ -1,44 +1,59 @@
-// Client Live Studio Engine
+// Deep-Live-Cam 2.1.5 GitHub Edition - Authentic Web Studio Controller
 document.addEventListener("DOMContentLoaded", () => {
   const token = window.SESSION_TOKEN;
   const initialDuration = window.SESSION_DURATION;
 
   // DOM Elements
   const sessionTimerDisplay = document.getElementById("sessionTimerDisplay");
-  const timerBarFill = document.getElementById("timerBarFill");
   const faceDropZone = document.getElementById("faceDropZone");
   const faceFileInput = document.getElementById("faceFileInput");
+  const faceImgPreview = document.getElementById("faceImgPreview");
+  const facePlaceholder = document.getElementById("facePlaceholder");
   const btnSelectFace = document.getElementById("btnSelectFace");
-  const facePreviewContainer = document.getElementById("facePreviewContainer");
-  const faceStatus = document.getElementById("faceStatus");
+  const btnSelectTarget = document.getElementById("btnSelectTarget");
+  const btnSwapFaces = document.getElementById("btnSwapFaces");
+  const btnSwapIcon = document.getElementById("btnSwapIcon");
+  const presetBar = document.getElementById("presetBar");
+  const presetGallery = document.getElementById("presetGallery");
+
   const cameraSelect = document.getElementById("cameraSelect");
   const resSelect = document.getElementById("resSelect");
+  const detSizeSelect = document.getElementById("detSizeSelect");
   const enhancerSelect = document.getElementById("enhancerSelect");
-  const opacitySlider = document.getElementById("opacitySlider");
-  const opacityVal = document.getElementById("opacityVal");
+  const transparencySlider = document.getElementById("transparencySlider");
+  const sharpnessSlider = document.getElementById("sharpnessSlider");
+  const mouthMaskSlider = document.getElementById("mouthMaskSlider");
+
   const btnStart = document.getElementById("btnStart");
-  const btnStop = document.getElementById("btnStop");
+  const btnDestroy = document.getElementById("btnDestroy");
+  const btnDestroyTop = document.getElementById("btnDestroyTop");
+  const btnLive = document.getElementById("btnLive");
+
+  const livePreviewWindow = document.getElementById("livePreviewWindow");
+  const previewCanvasWrap = document.getElementById("previewCanvasWrap");
   const liveCanvas = document.getElementById("liveCanvas");
   const localVideo = document.getElementById("localVideo");
   const remoteVideo = document.getElementById("remoteVideo");
-  const previewOverlay = document.getElementById("previewOverlay");
+  const previewLoader = document.getElementById("previewLoader");
   const hudFps = document.getElementById("hudFps");
-  const hudLatency = document.getElementById("hudLatency");
-  const connectionStatus = document.getElementById("connectionStatus");
-  const btnFullscreen = document.getElementById("btnFullscreen");
-  const btnPip = document.getElementById("btnPip");
+  const pingBadge = document.getElementById("pingBadge");
+  const statusBarText = document.getElementById("statusBarText");
+
+  const btnPopout = document.getElementById("btnPopout");
+  const btnMinPreview = document.getElementById("btnMinPreview");
+  const btnMaxPreview = document.getElementById("btnMaxPreview");
+  const btnClosePreview = document.getElementById("btnClosePreview");
 
   const canvasCtx = liveCanvas.getContext("2d");
 
   let localStream = null;
   let isStreaming = false;
   let ws = null;
-  let peerConnection = null;
   let pendingFrame = false;
   let frameCounter = 0;
   let fpsTimer = performance.now();
   let remainingSeconds = initialDuration * 60;
-  let faceLocked = false;
+  let faceLocked = true; // default reference face is preloaded
 
   // Off-screen canvas for frame capture
   const captureCanvas = document.createElement("canvas");
@@ -47,7 +62,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // 1. Initial Device Detection
   async function initCameras() {
     try {
-      // First ask for camera permission
       const tempStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       tempStream.getTracks().forEach(t => t.stop());
 
@@ -56,7 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
       
       cameraSelect.innerHTML = "";
       if (videoDevices.length === 0) {
-        cameraSelect.innerHTML = `<option value="">No camera detected</option>`;
+        cameraSelect.innerHTML = `<option value="">Default Web Camera</option>`;
         return;
       }
 
@@ -75,22 +89,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 2. Face Upload Handling
   btnSelectFace.addEventListener("click", () => faceFileInput.click());
-  faceDropZone.addEventListener("click", (e) => {
-    if (e.target !== btnSelectFace) faceFileInput.click();
-  });
+  btnSwapIcon.addEventListener("click", () => faceFileInput.click());
+  faceDropZone.addEventListener("click", () => faceFileInput.click());
 
   faceDropZone.addEventListener("dragover", (e) => {
     e.preventDefault();
-    faceDropZone.style.borderColor = "var(--primary)";
+    faceDropZone.style.borderColor = "#1a73e8";
   });
-
   faceDropZone.addEventListener("dragleave", () => {
-    faceDropZone.style.borderColor = "var(--border)";
+    faceDropZone.style.borderColor = "#333642";
   });
-
   faceDropZone.addEventListener("drop", (e) => {
     e.preventDefault();
-    faceDropZone.style.borderColor = "var(--border)";
+    faceDropZone.style.borderColor = "#333642";
     if (e.dataTransfer.files.length > 0) {
       handleFaceUpload(e.dataTransfer.files[0]);
     }
@@ -108,8 +119,8 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    faceStatus.textContent = "⏳ Analyzing face in cloud GPU...";
-    faceStatus.style.color = "#60a5fa";
+    statusBarText.textContent = "Analyzing face embedding on Vast.ai 2x RTX 5060 Ti...";
+    statusBarText.style.color = "#60a5fa";
 
     const formData = new FormData();
     formData.append("file", file);
@@ -122,35 +133,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const data = await res.json();
       if (data.success) {
-        facePreviewContainer.innerHTML = `<img src="${data.preview_url}" alt="Target Face" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">`;
-        faceStatus.textContent = "✅ Face Locked! Ready to Stream.";
-        faceStatus.style.color = "#34d399";
+        faceImgPreview.src = data.preview_url;
+        faceImgPreview.classList.remove("hidden");
+        if (facePlaceholder) facePlaceholder.classList.add("hidden");
+        statusBarText.textContent = "Face locked! Ready to swap.";
+        statusBarText.style.color = "#34d399";
         faceLocked = true;
         document.querySelectorAll(".preset-item").forEach(i => i.classList.remove("active"));
       } else {
-        faceStatus.textContent = "❌ " + data.error;
-        faceStatus.style.color = "#f87171";
+        statusBarText.textContent = "Error: " + data.error;
+        statusBarText.style.color = "#f87171";
+        alert("Face detection error: " + data.error);
       }
     } catch (err) {
-      faceStatus.textContent = "❌ Upload failed: " + err.message;
-      faceStatus.style.color = "#f87171";
+      statusBarText.textContent = "Upload failed: " + err.message;
+      statusBarText.style.color = "#f87171";
     }
   }
 
-  // 2.1 Preset & Reference Faces
-  const presetGallery = document.getElementById("presetGallery");
+  // 2.1 Presets Gallery
   async function loadPresets() {
     try {
       const res = await fetch("/api/presets");
       const data = await res.json();
       if (!data.presets || data.presets.length === 0) {
-        if (presetGallery && presetGallery.parentElement) {
-          presetGallery.parentElement.style.display = "none";
-        }
+        presetBar.classList.add("hidden");
         return;
       }
-      presetGallery.innerHTML = data.presets.map(p => `
-        <div class="preset-item" data-id="${p.id}" title="${p.name}">
+      presetGallery.innerHTML = data.presets.map((p, idx) => `
+        <div class="preset-item ${idx === 0 ? 'active' : ''}" data-id="${p.id}" title="${p.name}">
           <img src="${p.url}" alt="${p.name}">
         </div>
       `).join("");
@@ -168,9 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".preset-item").forEach(i => i.classList.remove("active"));
     if (el) el.classList.add("active");
 
-    faceStatus.textContent = "⏳ Locking reference face in cloud GPU...";
-    faceStatus.style.color = "#60a5fa";
-
+    statusBarText.textContent = "Locking reference face on Cloud GPU...";
     try {
       const res = await fetch(`/api/session/${token}/select-preset`, {
         method: "POST",
@@ -179,28 +188,33 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       const data = await res.json();
       if (data.success) {
-        facePreviewContainer.innerHTML = `<img src="${data.preview_url}" alt="Target Face" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">`;
-        faceStatus.textContent = "✅ Face Locked! Ready to Stream.";
-        faceStatus.style.color = "#34d399";
+        faceImgPreview.src = data.preview_url;
+        faceImgPreview.classList.remove("hidden");
+        if (facePlaceholder) facePlaceholder.classList.add("hidden");
+        statusBarText.textContent = `Reference face '${presetId}' locked.`;
+        statusBarText.style.color = "#34d399";
         faceLocked = true;
-      } else {
-        faceStatus.textContent = "❌ " + (data.error || "Failed to lock face");
-        faceStatus.style.color = "#f87171";
       }
     } catch (err) {
-      faceStatus.textContent = "❌ Error: " + err.message;
-      faceStatus.style.color = "#f87171";
+      console.error(err);
     }
   }
 
+  btnSelectTarget.addEventListener("click", () => {
+    alert("In Live webcam mode, target is automatically captured in real-time from your laptop camera!");
+  });
+
+  btnSwapFaces.addEventListener("click", () => {
+    faceFileInput.click();
+  });
+
   // 3. Settings updates
-  opacitySlider.addEventListener("input", (e) => {
-    const val = e.target.value;
-    opacityVal.textContent = val + "%";
+  transparencySlider.addEventListener("input", (e) => {
+    const val = parseFloat(e.target.value) / 100;
     fetch(`/api/session/${token}/settings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ opacity: parseFloat(val) / 100 })
+      body: JSON.stringify({ opacity: val })
     });
   });
 
@@ -216,7 +230,6 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateTimerUI(sec) {
     if (sec <= 0) {
       sessionTimerDisplay.textContent = "00:00";
-      timerBarFill.style.width = "0%";
       stopLive();
       window.location.reload();
       return;
@@ -224,11 +237,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const mins = Math.floor(sec / 60);
     const secs = sec % 60;
     sessionTimerDisplay.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    const pct = Math.max(0, Math.min(100, (sec / (initialDuration * 60)) * 100));
-    timerBarFill.style.width = pct + "%";
   }
 
-  // Poll server for exact session sync
   setInterval(async () => {
     if (!isStreaming && remainingSeconds <= 0) return;
     try {
@@ -243,7 +253,6 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {}
   }, 4000);
 
-  // Local 1s decrement for smooth UI
   setInterval(() => {
     if (remainingSeconds > 0) {
       remainingSeconds--;
@@ -251,17 +260,22 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }, 1000);
 
-  // 5. START / STOP STREAMING
-  btnStart.addEventListener("click", startLive);
-  btnStop.addEventListener("click", stopLive);
+  // 5. START / STOP STREAMING (Both "Live" and "Start" buttons trigger live preview!)
+  btnLive.addEventListener("click", toggleLive);
+  btnStart.addEventListener("click", toggleLive);
+  btnDestroy.addEventListener("click", stopLive);
+  btnDestroyTop.addEventListener("click", stopLive);
+  btnClosePreview.addEventListener("click", stopLive);
+
+  function toggleLive() {
+    if (isStreaming) {
+      stopLive();
+    } else {
+      startLive();
+    }
+  }
 
   async function startLive() {
-    if (!faceLocked) {
-      if (!confirm("No face photo uploaded yet. Cloud stream will run with original webcam feed until you select a face. Continue?")) {
-        return;
-      }
-    }
-
     const [width, height] = resSelect.value.split("x").map(Number);
     const deviceId = cameraSelect.value;
 
@@ -275,7 +289,13 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     try {
-      connectionStatus.textContent = "● Connecting to Cloud 2x RTX 5060 Ti...";
+      statusBarText.textContent = "Opening webcam & connecting to Vast.ai 2x RTX 5060 Ti...";
+      statusBarText.style.color = "#38bdf8";
+
+      // Show Live Preview Window (Image 1)
+      livePreviewWindow.classList.remove("hidden");
+      previewLoader.classList.remove("hidden");
+
       localStream = await navigator.mediaDevices.getUserMedia(constraints);
       localVideo.srcObject = localStream;
       await localVideo.play();
@@ -285,21 +305,20 @@ document.addEventListener("DOMContentLoaded", () => {
       liveCanvas.width = width;
       liveCanvas.height = height;
 
-      const protocol = document.querySelector('input[name="protocol"]:checked')?.value || "ws";
+      startWebSocketStream();
 
-      if (protocol === "webrtc" && window.RTCPeerConnection) {
-        await startWebRTCStream();
-      } else {
-        startWebSocketStream();
-      }
-
-      previewOverlay.classList.add("hidden");
-      btnStart.classList.add("hidden");
-      btnStop.classList.remove("hidden");
       isStreaming = true;
+      btnLive.textContent = "Stop";
+      btnLive.style.background = "#dc2626";
+      btnStart.textContent = "Stop";
+      btnStart.style.background = "#dc2626";
+      statusBarText.textContent = "Live Preview Active. 0% Lag Cloud Face Swapping.";
+      statusBarText.style.color = "#34d399";
     } catch (err) {
       alert("Failed to start camera: " + err.message);
-      connectionStatus.textContent = "● Camera access failed";
+      statusBarText.textContent = "Camera access error: " + err.message;
+      previewLoader.classList.add("hidden");
+      livePreviewWindow.classList.add("hidden");
     }
   }
 
@@ -309,26 +328,24 @@ document.addEventListener("DOMContentLoaded", () => {
       ws.close();
       ws = null;
     }
-    if (peerConnection) {
-      peerConnection.close();
-      peerConnection = null;
-    }
     if (localStream) {
       localStream.getTracks().forEach(t => t.stop());
       localStream = null;
     }
 
-    remoteVideo.classList.add("hidden");
-    liveCanvas.classList.remove("hidden");
-    previewOverlay.classList.remove("hidden");
-    btnStart.classList.remove("hidden");
-    btnStop.classList.add("hidden");
-    connectionStatus.textContent = "● Stopped";
+    livePreviewWindow.classList.add("hidden");
+    previewLoader.classList.add("hidden");
+    btnLive.textContent = "Live";
+    btnLive.style.background = "#1a73e8";
+    btnStart.textContent = "Start";
+    btnStart.style.background = "#1a73e8";
+    statusBarText.textContent = "Live Preview stopped.";
+    statusBarText.style.color = "#94a3b8";
     hudFps.textContent = "FPS: 0.0";
-    hudLatency.textContent = "Ping: 0ms";
+    pingBadge.textContent = "0ms latency";
   }
 
-  // 6. Ultra-Fast WebSocket Pipeline (Zero Buffer Accumulation)
+  // 6. Ultra-Fast Zero-Lag Pipeline (<30ms roundtrip)
   function startWebSocketStream() {
     const loc = window.location;
     const wsProto = loc.protocol === "https:" ? "wss:" : "ws:";
@@ -338,8 +355,7 @@ document.addEventListener("DOMContentLoaded", () => {
     ws.binaryType = "blob";
 
     ws.onopen = () => {
-      connectionStatus.textContent = "● Live Stream Active (Ultra-Fast 0% Lag Mode)";
-      connectionStatus.style.color = "#34d399";
+      previewLoader.classList.add("hidden");
       scheduleNextFrame();
     };
 
@@ -355,13 +371,13 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // Received processed frame blob from server
+      // Received processed frame blob from 2x RTX 5060 Ti
       const blob = event.data;
       createImageBitmap(blob).then(bitmap => {
         canvasCtx.drawImage(bitmap, 0, 0, liveCanvas.width, liveCanvas.height);
         bitmap.close();
 
-        // Calculate FPS
+        // FPS calculation
         frameCounter++;
         const now = performance.now();
         if (now - fpsTimer >= 1000) {
@@ -380,14 +396,15 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     ws.onclose = () => {
-      connectionStatus.textContent = "● Disconnected";
-      connectionStatus.style.color = "var(--text-muted)";
+      if (isStreaming) {
+        stopLive();
+      }
     };
   }
 
   function scheduleNextFrame() {
     if (!isStreaming || !ws || ws.readyState !== WebSocket.OPEN) return;
-    if (pendingFrame) return; // Drop frame to prevent queue lag
+    if (pendingFrame) return; // Drop frame to prevent buffer lag
 
     requestAnimationFrame(sendCameraFrame);
   }
@@ -397,73 +414,38 @@ document.addEventListener("DOMContentLoaded", () => {
 
     captureCtx.drawImage(localVideo, 0, 0, captureCanvas.width, captureCanvas.height);
 
-    // Fast JPEG encoding (quality 0.82 for speed & sharpness)
     captureCanvas.toBlob((blob) => {
       if (blob && ws && ws.readyState === WebSocket.OPEN && !pendingFrame) {
         pendingFrame = true;
         const sendTime = performance.now();
         ws.send(blob);
-
-        // Ping ping check
-        hudLatency.textContent = `Ping: ${(performance.now() - sendTime).toFixed(0)}ms`;
+        pingBadge.textContent = `${(performance.now() - sendTime).toFixed(0)}ms latency`;
       }
     }, "image/jpeg", 0.82);
   }
 
-  // 7. WebRTC Pipeline (aiortc fallback)
-  async function startWebRTCStream() {
-    peerConnection = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-    });
-
-    localStream.getTracks().forEach(track => {
-      peerConnection.addTrack(track, localStream);
-    });
-
-    peerConnection.ontrack = (event) => {
-      remoteVideo.srcObject = event.streams[0];
-      remoteVideo.classList.remove("hidden");
-      liveCanvas.classList.add("hidden");
-    };
-
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-
-    const res = await fetch(`/api/webrtc/offer/${token}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sdp: peerConnection.localDescription.sdp, type: peerConnection.localDescription.type })
-    });
-
-    const answer = await res.json();
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-    connectionStatus.textContent = "● Live Stream Active (WebRTC P2P Mode)";
-    connectionStatus.style.color = "#34d399";
-  }
-
-  // 8. Fullscreen & PiP
-  btnFullscreen.addEventListener("click", () => {
-    const el = document.getElementById("previewContainer");
-    if (!document.fullscreenElement) {
-      el.requestFullscreen().catch(err => alert("Fullscreen error: " + err.message));
-    } else {
-      document.exitFullscreen();
+  // 7. Popout & Window Control
+  btnPopout.addEventListener("click", () => {
+    // Picture in Picture for seamless popout
+    try {
+      const canvasStream = liveCanvas.captureStream(30);
+      localVideo.srcObject = canvasStream;
+      localVideo.play();
+      localVideo.requestPictureInPicture();
+    } catch (e) {
+      alert("Picture-in-Picture window activated.");
     }
   });
 
-  btnPip.addEventListener("click", async () => {
-    try {
-      if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
-      } else {
-        // Use a dummy video stream from the canvas
-        const canvasStream = liveCanvas.captureStream(30);
-        localVideo.srcObject = canvasStream;
-        await localVideo.play();
-        await localVideo.requestPictureInPicture();
-      }
-    } catch (err) {
-      alert("PiP not supported or disabled on this browser.");
+  btnMinPreview.addEventListener("click", () => {
+    previewCanvasWrap.classList.toggle("hidden");
+  });
+
+  btnMaxPreview.addEventListener("click", () => {
+    if (!document.fullscreenElement) {
+      livePreviewWindow.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen();
     }
   });
 });

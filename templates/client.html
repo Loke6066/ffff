@@ -3,167 +3,280 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Deep-Live-Cam | Live Cloud Studio</title>
+  <title>Deep-Live-Cam 2.1.5 GitHub Edition</title>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="dark-theme client-mode">
-  <div class="client-container">
-    <!-- Top Bar with Countdown Timer -->
-    <header class="client-header">
-      <div class="client-brand">
-        <span class="live-dot"></span>
-        <span class="title">Deep-Live-Cam <span>Live Studio</span></span>
-      </div>
+<body class="dlc-body">
 
-      <div class="timer-container" id="timerBox">
-        <span class="timer-icon">⏱️ Session Time Left:</span>
-        <span class="timer-display" id="sessionTimerDisplay">--:--</span>
-        <div class="timer-bar"><div class="timer-bar-fill" id="timerBarFill"></div></div>
-      </div>
+  <!-- Top Global Session Bar -->
+  <div class="session-floating-bar">
+    <div class="session-pill">
+      <span class="live-indicator"></span>
+      <span class="session-label">Cloud Session:</span>
+      <span id="sessionTimerDisplay" class="session-timer">--:--</span>
+    </div>
+    <div class="gpu-pill">
+      <span>⚡ Vast.ai Cloud: 2x RTX 5060 Ti (32GB VRAM)</span>
+    </div>
+  </div>
 
-      <div class="engine-badge">
-        <span>⚡ Cloud GPU: 2x RTX 5060 Ti (32GB VRAM) Active</span>
+  <!-- Main Deep-Live-Cam Window Container (Matches Image 2 exactly) -->
+  <div class="dlc-app-window">
+    <!-- Window Titlebar -->
+    <div class="dlc-titlebar">
+      <div class="dlc-title">
+        <svg class="dlc-app-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <rect x="1" y="1" width="14" height="14" rx="2" stroke="#10b981" stroke-width="2"/>
+          <line x1="1" y1="5" x2="15" y2="5" stroke="#10b981" stroke-width="1.5"/>
+        </svg>
+        <span>Deep-Live-Cam 2.1.5 GitHub Edition</span>
       </div>
-    </header>
+      <div class="dlc-window-controls">
+        <span class="win-btn win-min">─</span>
+        <span class="win-btn win-max">□</span>
+        <span class="win-btn win-close" id="btnDestroyTop">✕</span>
+      </div>
+    </div>
 
-    <!-- Main Workspace -->
-    <div class="studio-grid">
-      <!-- Left Column: Controls & Face Selector (Matches original Deep-Live-Cam layout) -->
-      <aside class="control-panel">
-        <div class="panel-section">
-          <h3>Source Face Image</h3>
-          <p class="section-desc">Select or upload the photo of the face you want to swap onto your live camera:</p>
-          
-          <div class="face-card" id="faceDropZone">
-            <div class="face-preview-area" id="facePreviewContainer">
-              <div class="placeholder-icon">👤</div>
-              <p>Drag & Drop or Click to Upload Face</p>
+    <!-- Window Body -->
+    <div class="dlc-content">
+
+      <!-- TOP SECTION: Source Face & Target -->
+      <div class="dlc-faces-row">
+        <!-- Source Face Box -->
+        <div class="face-box-container">
+          <div class="face-preview-box" id="faceDropZone" title="Click or Drag & Drop face photo">
+            <img id="faceImgPreview" src="/media/presets/male_ref_1.jpg" alt="Selected Face">
+            <div id="facePlaceholder" class="face-placeholder hidden">
+              <span>👤 Drag or Select Face</span>
             </div>
             <input type="file" id="faceFileInput" accept="image/*" class="hidden">
-            <button id="btnSelectFace" class="btn btn-primary btn-block">
-              📁 Select a face
+          </div>
+          <div class="face-btn-row">
+            <button id="btnSelectFace" class="dlc-btn dlc-btn-blue dlc-btn-face">
+              Select a face
             </button>
-            <div id="faceStatus" class="face-status-text">No face selected yet</div>
-          </div>
-
-          <!-- Quick Select Reference Faces -->
-          <div class="preset-gallery-wrapper">
-            <span class="preset-gallery-label">🌟 Or Click a Reference Face:</span>
-            <div class="preset-gallery" id="presetGallery">
-              <!-- Dynamically populated from /api/presets -->
-            </div>
+            <button id="btnSwapIcon" class="dlc-btn-icon" title="Choose from preset faces">
+              ⇄
+            </button>
           </div>
         </div>
 
-        <!-- Camera Controls -->
-        <div class="panel-section">
-          <h3>Camera Configuration</h3>
-          <div class="form-group">
-            <label for="cameraSelect">Select Camera:</label>
-            <select id="cameraSelect" class="form-select">
-              <option value="">Detecting cameras...</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label for="resSelect">Resolution:</label>
-            <select id="resSelect" class="form-select">
-              <option value="640x480" selected>640 x 480 (Recommended - Lowest Latency)</option>
-              <option value="1280x720">1280 x 720 (HD)</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Refinement Options (matches screenshot) -->
-        <div class="panel-section">
-          <h3>Refinement & Options</h3>
-          
-          <div class="form-group">
-            <label for="enhancerSelect">Face Enhancer:</label>
-            <select id="enhancerSelect" class="form-select">
-              <option value="none" selected>None (Fastest - 0% Lag)</option>
-              <option value="face_enhancer_gpen256">GPEN-256 (High Quality Face Detail)</option>
-              <option value="face_enhancer_gpen512">GPEN-512 (Ultra Quality)</option>
-            </select>
-          </div>
-
-          <div class="slider-group">
-            <div class="slider-header">
-              <label for="opacitySlider">Opacity (Blend Factor):</label>
-              <span id="opacityVal">100%</span>
-            </div>
-            <input type="range" id="opacitySlider" min="0" max="100" value="100" class="form-range">
-          </div>
-
-          <div class="stream-protocol-group">
-            <label>Stream Engine:</label>
-            <div class="radio-pill-group">
-              <label class="radio-pill">
-                <input type="radio" name="protocol" value="ws" checked>
-                <span>Ultra-Fast WebSocket</span>
-              </label>
-              {% if webrtc_supported %}
-              <label class="radio-pill">
-                <input type="radio" name="protocol" value="webrtc">
-                <span>WebRTC P2P</span>
-              </label>
-              {% endif %}
-            </div>
-          </div>
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="action-buttons">
-          <button id="btnStart" class="btn btn-start btn-block">
-            ▶️ Start Live
-          </button>
-          <button id="btnStop" class="btn btn-destroy btn-block hidden">
-            ⏹️ Stop
+        <!-- Middle Swap Arrow Button -->
+        <div class="swap-middle-container">
+          <button class="dlc-btn-pill-icon" id="btnSwapFaces" title="Swap face slot">
+            &lt;-&gt;
           </button>
         </div>
-      </aside>
 
-      <!-- Right Column: Live Output Preview Window (Matches Screenshot 1 "Live Preview") -->
-      <main class="preview-area">
-        <div class="preview-window">
-          <div class="window-header">
-            <div class="window-title">
-              <span class="window-icon">🟩</span>
-              <span>Live Preview</span>
-            </div>
-            <div class="window-stats">
-              <span id="hudFps" class="stat-badge">FPS: 0.0</span>
-              <span id="hudLatency" class="stat-badge">Ping: 0ms</span>
-              <button id="btnPip" class="btn-icon-tiny" title="Picture in Picture / Popout">🪟</button>
-              <button id="btnFullscreen" class="btn-icon-tiny" title="Fullscreen">⛶</button>
-            </div>
+        <!-- Target Box -->
+        <div class="face-box-container">
+          <div class="face-preview-box target-box" id="targetDropZone">
+            <span class="target-label">Target</span>
           </div>
-
-          <div class="window-content" id="previewContainer">
-            <!-- Swapped Face Realtime Canvas / Video -->
-            <canvas id="liveCanvas" width="640" height="480"></canvas>
-            <video id="remoteVideo" class="hidden" autoplay playsinline></video>
-            <video id="localVideo" class="hidden" autoplay playsinline muted></video>
-
-            <!-- Overlay when inactive -->
-            <div id="previewOverlay" class="preview-overlay">
-              <div class="overlay-card">
-                <div class="pulse-icon">⚡</div>
-                <h3>Ready to Start</h3>
-                <p>1. Upload or select your face photo on the left.<br>2. Click <strong>"Start Live"</strong> to begin zero-lag cloud face swap.</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="window-footer">
-            <span id="connectionStatus">● Idle - Ready</span>
-            <span class="latency-guarantee">Cloud RTX Engine • Sub-50ms Processing Guarantee</span>
+          <div class="face-btn-row">
+            <button id="btnSelectTarget" class="dlc-btn dlc-btn-blue dlc-btn-face">
+              Select a target
+            </button>
           </div>
         </div>
-      </main>
+      </div>
+
+      <!-- Quick Preset Selection Bar (Seamlessly integrated) -->
+      <div class="preset-selector-mini" id="presetBar">
+        <span class="preset-mini-label">Reference Presets:</span>
+        <div class="preset-mini-items" id="presetGallery">
+          <!-- Populated from /api/presets -->
+        </div>
+      </div>
+
+      <!-- OPTIONS SECTION -->
+      <div class="dlc-section-box">
+        <div class="dlc-section-title">Options</div>
+        <div class="dlc-options-grid">
+          <!-- Left Column -->
+          <div class="options-col">
+            <label class="dlc-toggle-row">
+              <input type="checkbox" id="optKeepFps">
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">Keep fps</span>
+            </label>
+            <label class="dlc-toggle-row">
+              <input type="checkbox" id="optKeepFrames">
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">Keep frames</span>
+            </label>
+            <label class="dlc-toggle-row">
+              <input type="checkbox" id="optMapFaces">
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">Map faces</span>
+            </label>
+            <label class="dlc-toggle-row">
+              <input type="checkbox" id="optPoisson">
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">Poisson Blend</span>
+            </label>
+          </div>
+
+          <!-- Right Column -->
+          <div class="options-col">
+            <label class="dlc-toggle-row">
+              <input type="checkbox" id="optKeepAudio" checked>
+              <span class="toggle-slider active-blue"></span>
+              <span class="toggle-label">Keep audio</span>
+            </label>
+            <label class="dlc-toggle-row">
+              <input type="checkbox" id="optManyFaces">
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">Many faces</span>
+            </label>
+            <label class="dlc-toggle-row">
+              <input type="checkbox" id="optShowFps" checked>
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">Show FPS</span>
+            </label>
+            <label class="dlc-toggle-row">
+              <input type="checkbox" id="optFixBlueish">
+              <span class="toggle-slider"></span>
+              <span class="toggle-label">Fix Blueish Cam</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Face Enhancer Dropdown -->
+        <div class="dlc-dropdown-row">
+          <label for="enhancerSelect">Face Enhancer:</label>
+          <div class="select-wrapper">
+            <select id="enhancerSelect" class="dlc-select">
+              <option value="none" selected>None</option>
+              <option value="face_enhancer_gpen256">GPEN-256 (High Detail)</option>
+              <option value="face_enhancer_gpen512">GPEN-512 (Ultra)</option>
+              <option value="gfpgan">GFPGAN</option>
+              <option value="codeformer">CodeFormer</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- REFINEMENT SECTION -->
+      <div class="dlc-section-box">
+        <div class="dlc-section-title">Refinement</div>
+        <div class="dlc-sliders-group">
+          <!-- Transparency Slider -->
+          <div class="dlc-slider-row">
+            <span class="slider-title">Transparency</span>
+            <div class="slider-track-wrap">
+              <input type="range" id="transparencySlider" min="0" max="100" value="100" class="dlc-slider blue-track">
+            </div>
+          </div>
+
+          <!-- Sharpness Slider -->
+          <div class="dlc-slider-row">
+            <span class="slider-title">Sharpness</span>
+            <div class="slider-track-wrap">
+              <input type="range" id="sharpnessSlider" min="0" max="100" value="0" class="dlc-slider grey-track">
+            </div>
+          </div>
+
+          <!-- Mouth Mask Slider -->
+          <div class="dlc-slider-row">
+            <span class="slider-title">Mouth Mask</span>
+            <div class="slider-track-wrap">
+              <input type="range" id="mouthMaskSlider" min="0" max="100" value="0" class="dlc-slider grey-track">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACTION BUTTONS (Start & Destroy) -->
+      <div class="dlc-actions-row">
+        <button id="btnStart" class="dlc-btn dlc-btn-blue dlc-btn-action">
+          Start
+        </button>
+        <button id="btnDestroy" class="dlc-btn dlc-btn-red dlc-btn-action" title="Stop processing and close the application">
+          Destroy
+        </button>
+      </div>
+
+      <!-- CAMERA SECTION -->
+      <div class="dlc-section-box">
+        <div class="dlc-section-title">Camera</div>
+        
+        <!-- Select Camera Row with blue Live button right next to it -->
+        <div class="dlc-camera-row">
+          <label for="cameraSelect">Select Camera:</label>
+          <div class="camera-input-group">
+            <select id="cameraSelect" class="dlc-select">
+              <option value="">Detecting Camera...</option>
+            </select>
+            <button id="btnLive" class="dlc-btn dlc-btn-blue dlc-btn-live">
+              Live
+            </button>
+          </div>
+        </div>
+
+        <!-- Resolution Row -->
+        <div class="dlc-form-row">
+          <label for="resSelect">Resolution:</label>
+          <select id="resSelect" class="dlc-select">
+            <option value="640x480" selected>640 x 480</option>
+            <option value="1280x720">1280 x 720</option>
+          </select>
+        </div>
+
+        <!-- Det size Row -->
+        <div class="dlc-form-row">
+          <label for="detSizeSelect">Det size:</label>
+          <select id="detSizeSelect" class="dlc-select">
+            <option value="640x640" selected>640 x 640</option>
+            <option value="512x512">512 x 512</option>
+            <option value="320x320">320 x 320</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Footer Info -->
+      <div class="dlc-status-bar">
+        <span id="statusBarText">Ready. Click 'Live' or 'Start' to begin real-time preview.</span>
+        <span id="pingBadge" class="ping-tag">0ms latency</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FLOATING LIVE PREVIEW WINDOW (Matches Image 1 exactly) -->
+  <div class="dlc-preview-window hidden" id="livePreviewWindow">
+    <div class="dlc-titlebar preview-titlebar" id="previewTitlebar">
+      <div class="dlc-title">
+        <svg class="dlc-app-icon" width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <rect x="1" y="1" width="14" height="14" rx="2" stroke="#10b981" stroke-width="2"/>
+          <line x1="1" y1="5" x2="15" y2="5" stroke="#10b981" stroke-width="1.5"/>
+        </svg>
+        <span>Live Preview</span>
+      </div>
+      <div class="preview-stats">
+        <span id="hudFps">FPS: 30.0</span>
+        <button id="btnPopout" class="win-btn win-popout" title="Pop out into separate OS window">🗗</button>
+        <span class="win-btn win-min" id="btnMinPreview">─</span>
+        <span class="win-btn win-max" id="btnMaxPreview">□</span>
+        <span class="win-btn win-close" id="btnClosePreview">✕</span>
+      </div>
+    </div>
+
+    <!-- Video Canvas Content -->
+    <div class="preview-canvas-wrap" id="previewCanvasWrap">
+      <canvas id="liveCanvas" width="640" height="480"></canvas>
+      <video id="remoteVideo" class="hidden" autoplay playsinline></video>
+      <video id="localVideo" class="hidden" autoplay playsinline muted></video>
+
+      <!-- Connecting Spinner -->
+      <div id="previewLoader" class="preview-loader hidden">
+        <div class="spinner"></div>
+        <span>Connecting to Cloud 2x RTX 5060 Ti...</span>
+      </div>
     </div>
   </div>
 
