@@ -25,7 +25,10 @@ except (ImportError, Exception):
 
 import modules.globals
 import modules.metadata
-import modules.ui as ui
+try:
+    import modules.ui as ui
+except (ImportError, Exception):
+    ui = None
 from modules.processors.frame.core import get_frame_processors_modules, process_video_in_memory
 from modules.utilities import has_image_extension, is_image, is_video, detect_fps, create_video, extract_frames, get_temp_frame_paths, restore_audio, create_temp, move_temp, clean_temp, normalize_output_path
 
@@ -215,7 +218,7 @@ def pre_check() -> bool:
 
 def update_status(message: str, scope: str = 'DLC.CORE') -> None:
     print(f'[{scope}] {message}')
-    if not modules.globals.headless:
+    if not modules.globals.headless and ui is not None:
         ui.update_status(message)
 
 def start() -> None:
