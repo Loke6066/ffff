@@ -12,8 +12,25 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
     sys.path.insert(0, CURRENT_DIR)
 
+# Preload PyTorch CUDA & cuDNN libraries to ensure onnxruntime resolves CUDA symbols
+try:
+    import torch
+    torch_lib = os.path.join(os.path.dirname(torch.__file__), "lib")
+    if os.path.exists(torch_lib):
+        import ctypes
+        for lib in ["libcublas.so.12", "libcublasLt.so.12", "libcudnn.so.8", "libcudnn.so.9"]:
+            p = os.path.join(torch_lib, lib)
+            if os.path.exists(p):
+                try:
+                    ctypes.CDLL(p, mode=ctypes.RTLD_GLOBAL)
+                except Exception:
+                    pass
+except Exception:
+    pass
+
 import insightface
 from insightface.app import FaceAnalysis
+import onnxruntime as ort
 
 # ==============================================================================
 # 👁️ EYE + MOUTH NATURAL MASK (Proven Ultra-Fast SIMD Blender)
@@ -62,8 +79,25 @@ class CloudSwapEngine:
             if self.initialized:
                 return
 
-            print("[Engine] Initializing 100% GPU FaceSwap Engine (CUDA 13.2 / RTX 5090)...")
-            gpu_providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] if use_cuda else ['CPUExecutionProvider']
+            print("[Engine] Initializing FaceSwap Engine...")
+            available_providers = ort.get_available_providers()
+            print(f"[Engine] Available ONNX Providers: {available_providers}")
+
+            if 'CUDAExecutionProvider' in available_providers and use_cuda:
+                print("⚡ [Engine] CUDAExecutionProvider ACTIVE! Full RTX 5090 GPU acceleration enabled.")
+                gpu_providers = [
+                    ('CUDAExecutionProvider', {
+                        'device_id': 0,
+                        'arena_extend_strategy': 'kNextPowerOfTwo',
+                        'cudnn_conv_algo_search': 'DEFAULT',
+                        'do_copy_in_default_stream': True,
+                    }),
+                    'CPUExecutionProvider'
+                ]
+            else:
+                print("⚠️ [Engine] WARNING: CUDAExecutionProvider NOT found! Falling back to CPU.")
+                print("👉 Please run: 'bash fix_gpu.sh' to install CUDA 12 onnxruntime-gpu!")
+                gpu_providers = ['CPUExecutionProvider']
 
             # Optimize by ONLY loading detection, 106-landmarks, and recognition
             self.det_app = FaceAnalysis(

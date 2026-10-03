@@ -37,9 +37,16 @@ pip install --upgrade pip setuptools wheel
 echo "[3/6] Installing PyTorch with CUDA support..."
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 
-# 4. Install Cloud Dependencies & ONNX Runtime GPU
+# 4. Install Cloud Dependencies & ONNX Runtime GPU (CUDA 12 Optimized)
 echo "[4/6] Installing Deep-Live-Cam Cloud dependencies..."
 pip install -r requirements-cloud.txt
+pip uninstall -y onnxruntime || true
+pip install onnxruntime-gpu --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
+
+TORCH_LIB=$(python3 -c "import torch, os; print(os.path.join(os.path.dirname(torch.__file__), 'lib'))")
+export LD_LIBRARY_PATH="${TORCH_LIB}:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
+sed -i '/export LD_LIBRARY_PATH/d' venv/bin/activate 2>/dev/null || true
+echo "export LD_LIBRARY_PATH=\"${TORCH_LIB}:/usr/local/cuda/lib64:\$LD_LIBRARY_PATH\"" >> venv/bin/activate
 
 # 5. Pre-download AI Models to models directory
 echo "[5/6] Pre-downloading InsightFace buffalo_l and inswapper ONNX models..."

@@ -7,6 +7,7 @@ insightface>=0.7.3
 psutil>=5.9.0
 pillow>=10.2.0
 tqdm>=4.66.0
+--extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
 onnxruntime-gpu>=1.18.0
 protobuf>=4.25.0
 scikit-learn>=1.4.0
