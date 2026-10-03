@@ -3,8 +3,8 @@ setlocal
 echo =========================================================
 echo  Build and Push Face Swap Docker Image to Docker Hub
 echo =========================================================
-set /p DOCKER_USER="Enter your Docker Hub username: "
-set IMAGE_NAME=%DOCKER_USER%/deep-live-cam-runpod:latest
+set IMAGE_NAME=arjun2805/faceapp:latest
+echo Target Image: %IMAGE_NAME%
 
 echo.
 echo [1/3] Logging into Docker Hub...

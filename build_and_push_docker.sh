@@ -3,8 +3,8 @@ set -e
 echo "========================================================="
 echo " Build and Push Face Swap Docker Image to Docker Hub"
 echo "========================================================="
-read -p "Enter your Docker Hub username: " DOCKER_USER
-IMAGE_NAME="${DOCKER_USER}/deep-live-cam-runpod:latest"
+IMAGE_NAME="arjun2805/faceapp:latest"
+echo "Target Image: ${IMAGE_NAME}"
 
 echo ""
 echo "[1/3] Logging into Docker Hub..."
