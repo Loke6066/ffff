@@ -18,19 +18,22 @@ fuser -k 7860/tcp 2>/dev/null || true
 echo "[1/4] Removing conflicting CPU onnxruntime packages..."
 pip uninstall -y onnxruntime onnxruntime-gpu || true
 
-# 3. Install CUDA 12 compatible onnxruntime-gpu package
-echo "[2/4] Installing CUDA 12 ONNX Runtime GPU..."
-pip install onnxruntime-gpu --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
+# 3. Install CUDA 12 libraries & ONNX Runtime GPU
+echo "[2/4] Installing CUDA 12 packages & ONNX Runtime GPU..."
+pip install --no-cache-dir nvidia-cuda-runtime-cu12 nvidia-cudnn-cu12 nvidia-cublas-cu12
+pip install --no-cache-dir onnxruntime-gpu --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
 
-# 4. Export PyTorch CUDA & cuDNN libraries to dynamic linker
-echo "[3/4] Linking PyTorch CUDA & cuDNN libraries..."
+# 4. Export all CUDA 12 and cuDNN library paths into LD_LIBRARY_PATH
+echo "[3/4] Linking CUDA 12 & cuDNN libraries..."
+NVIDIA_BASE=$(python3 -c "import site; print(site.getsitepackages()[0] + '/nvidia')")
 TORCH_LIB=$(python3 -c "import torch, os; print(os.path.join(os.path.dirname(torch.__file__), 'lib'))")
-export LD_LIBRARY_PATH="${TORCH_LIB}:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
 
-# Persist to venv activate script
+ALL_CUDA_PATHS="${TORCH_LIB}:${NVIDIA_BASE}/cudnn/lib:${NVIDIA_BASE}/cublas/lib:${NVIDIA_BASE}/cuda_runtime/lib:/usr/local/cuda/lib64"
+export LD_LIBRARY_PATH="${ALL_CUDA_PATHS}:${LD_LIBRARY_PATH}"
+
 if [ -f "venv/bin/activate" ]; then
     sed -i '/export LD_LIBRARY_PATH/d' venv/bin/activate
-    echo "export LD_LIBRARY_PATH=\"${TORCH_LIB}:/usr/local/cuda/lib64:\$LD_LIBRARY_PATH\"" >> venv/bin/activate
+    echo "export LD_LIBRARY_PATH=\"${ALL_CUDA_PATHS}:\$LD_LIBRARY_PATH\"" >> venv/bin/activate
 fi
 
 # 5. Verify CUDA Provider

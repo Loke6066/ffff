@@ -260,44 +260,24 @@ async def websocket_live_stream(websocket: WebSocket, token: str):
     session.client_connected = True
     print(f"[WS] Client connected for session {token}")
 
-    frame_count = 0
-    t0 = time.time()
+    # Single-slot queue: Always processes the newest frame, drops stale frames
+    frame_queue = asyncio.Queue(maxsize=1)
+    stop_event = asyncio.Event()
 
-    try:
-        while True:
-            # Check session expiry
-            if session.is_expired():
-                await websocket.send_text(json.dumps({"type": "expired", "message": "Session time has ended"}))
+    async def gpu_worker():
+        frame_count = 0
+        t0 = time.time()
+        while not stop_event.is_set():
+            try:
+                frame_bytes = await frame_queue.get()
+            except asyncio.CancelledError:
                 break
 
-            # Receive binary frame from client webcam
-            message = await websocket.receive()
-            
-            if "text" in message:
-                try:
-                    cmd = json.loads(message["text"])
-                    if cmd.get("type") == "ping":
-                        rem = session.get_remaining_seconds()
-                        await websocket.send_text(json.dumps({
-                            "type": "pong",
-                            "remaining_seconds": rem,
-                            "fps": round(session.fps, 1)
-                        }))
-                        continue
-                except Exception:
-                    pass
-
-            if "bytes" in message:
-                frame_bytes = message["bytes"]
-                if not frame_bytes:
-                    continue
-
-                # Fast decode directly from memory
+            try:
                 nparr = np.frombuffer(frame_bytes, np.uint8)
                 img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
                 if img is not None:
-                    # Run face swap asynchronously on Cloud GPU without blocking event loop
                     if session.source_face is not None:
                         swapped = await asyncio.to_thread(
                             cloud_engine.process_frame,
@@ -310,13 +290,9 @@ async def websocket_live_stream(websocket: WebSocket, token: str):
                     else:
                         swapped = img
 
-                    # Ultra-fast JPEG encode (quality 55 for ~12KB payload & instant network transport)
-                    _, encoded = cv2.imencode('.jpg', swapped, [int(cv2.IMWRITE_JPEG_QUALITY), 55])
-                    
-                    # Send swapped frame back to client browser instantly
+                    _, encoded = cv2.imencode('.jpg', swapped, [int(cv2.IMWRITE_JPEG_QUALITY), 65])
                     await websocket.send_bytes(encoded.tobytes())
 
-                    # Track FPS
                     frame_count += 1
                     session.total_frames_processed += 1
                     now = time.time()
@@ -324,12 +300,55 @@ async def websocket_live_stream(websocket: WebSocket, token: str):
                         session.fps = frame_count / (now - t0)
                         frame_count = 0
                         t0 = now
+            except Exception as e:
+                print(f"[WS Worker] Error: {e}")
+            finally:
+                frame_queue.task_done()
+
+    worker_task = asyncio.create_task(gpu_worker())
+
+    try:
+        while True:
+            if session.is_expired():
+                await websocket.send_text(json.dumps({"type": "expired", "message": "Session time has ended"}))
+                break
+
+            message = await websocket.receive()
+            if "bytes" in message:
+                raw_bytes = message["bytes"]
+                if raw_bytes:
+                    # Drop previous frame if GPU is still working on it -> 0% Latency!
+                    if frame_queue.full():
+                        try:
+                            frame_queue.get_nowait()
+                            frame_queue.task_done()
+                        except Exception:
+                            pass
+                    try:
+                        frame_queue.put_nowait(raw_bytes)
+                    except Exception:
+                        pass
+
+            elif "text" in message:
+                try:
+                    cmd = json.loads(message["text"])
+                    if cmd.get("type") == "ping":
+                        rem = session.get_remaining_seconds()
+                        await websocket.send_text(json.dumps({
+                            "type": "pong",
+                            "remaining_seconds": rem,
+                            "fps": round(session.fps, 1)
+                        }))
+                except Exception:
+                    pass
 
     except WebSocketDisconnect:
         print(f"[WS] Client disconnected from session {token}")
     except Exception as e:
-        print(f"[WS] Error in stream: {e}")
+        print(f"[WS] Stream exception: {e}")
     finally:
+        stop_event.set()
+        worker_task.cancel()
         session.client_connected = False
 
 # ----------------- WEBRTC ZERO-LAG PIPELINE (aiortc) -----------------

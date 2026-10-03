@@ -409,31 +409,32 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function sendCameraFrame() {
-    if (!isStreaming || !ws || ws.readyState !== WebSocket.OPEN || inFlight) return;
+    if (!isStreaming || !ws || ws.readyState !== WebSocket.OPEN) return;
+    if (inFlight) return;
 
     captureCtx.drawImage(localVideo, 0, 0, captureCanvas.width, captureCanvas.height);
     inFlight = true;
     lastSendTime = performance.now();
 
-    // Quality 0.52 produces tiny ~14KB packet for zero network latency
+    // Fast JPEG encode for minimal network latency
     captureCanvas.toBlob((blob) => {
       if (blob && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(blob);
       } else {
         inFlight = false;
       }
-    }, "image/jpeg", 0.52);
+    }, "image/jpeg", 0.60);
   }
 
-  // Watchdog: If frame dropped or delayed > 120ms, drop stale state and send fresh live frame
+  // Safe timeout watchdog (checks every 200ms, only recovers if a frame packet was truly lost)
   setInterval(() => {
     if (isStreaming && ws && ws.readyState === WebSocket.OPEN && inFlight) {
-      if (performance.now() - lastSendTime > 120) {
+      if (performance.now() - lastSendTime > 400) {
         inFlight = false;
         sendCameraFrame();
       }
     }
-  }, 50);
+  }, 200);
 
   // 7. Popout Standalone "Live Preview" OS Window (Matches User Screenshot Exactly)
   function openSeparateLivePreview() {
